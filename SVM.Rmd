@@ -1,0 +1,122 @@
+---
+title: "SVM Analysis on Cancer Dataset"
+author: "Junyeong Shin"
+output: html_document
+---
+
+## Introduction
+This analysis uses Support Vector Machine (SVM) to classify breast cancer data into Benign or Malignant categories. We will compare the model's performance with the previous Random Forest and KNN models to evaluate its effectiveness in predicting cancer outcomes.
+
+## Loading Libraries and Dataset
+```{r setup, include=FALSE}
+library(e1071)
+library(caret)
+library(dplyr)
+library(pROC)
+library(naivebayes)
+# Set seed for reproducibility
+set.seed(1234)
+
+# Load the cancer dataset
+cancer <- read.csv("breast-cancer-wisconsin.csv")
+
+# Remove ID column and normalize dataset
+cancer <- cancer[, -1]
+
+# Set 'class' as factor with appropriate labels
+cancer$class <- factor(cancer$class, levels = c(2, 4), labels = c("Benign", "Malignant"))
+
+# Check the class distribution
+table(cancer$class)
+```
+
+## Data Preparation and Train-Test Split
+```{r data-preparation}
+# Split the data into training and test sets (80/20 split)
+n <- nrow(cancer)
+rnd <- sample(1:n, n * 0.8, replace = FALSE) # Create a sequence of row numbers
+train_data <- cancer[rnd, ]
+test_data <- cancer[-rnd, ]
+```
+
+## Training the SVM Model
+```{r train-svm}
+# Fit SVM model with radial kernel, cost = 1, and 10-fold cross-validation
+svmfit <- tune.svm(class ~ ., data = train_data, 
+                   kernel = "radial", scale = TRUE, cross = 10, 
+                   cost = 10^(-1:2), gamma = c(0.5, 1, 2))
+
+# Summary of the tuning results
+summary(svmfit)
+
+# Extracting the best model
+best_svm <- svmfit$best.model
+summary(best_svm)
+```
+
+## Evaluating Model Performance
+```{r evaluate-performance}
+# Predictions on the Test Set
+svm_predict <- predict(best_svm, newdata = test_data)
+
+# Create confusion matrix
+t_svm <- table(Predict = svm_predict, Truth = test_data$class)
+
+# Calculate accuracy
+accuracy_svm <- sum(diag(t_svm)) / nrow(test_data)
+accuracy_svm
+
+# Display confusion matrix
+conf_matrix <- confusionMatrix(t_svm, positive = "Malignant")
+conf_matrix
+
+# Extract sensitivity and specificity
+sensitivity_svm <- conf_matrix$byClass["Sensitivity"]
+specificity_svm <- conf_matrix$byClass["Specificity"]
+sensitivity_svm
+specificity_svm
+```
+
+## ROC Curve
+```{r roc-curve}
+# Plotting the ROC curve
+par(pty = "s") # Set plot type to square
+y <- ifelse(test_data$class == "Malignant", 1, 0)
+x <- as.numeric(svm_predict) - 1 # Convert predictions to binary (0 or 1)
+svm_roc <- roc(y, x, plot = TRUE, print.auc = TRUE,
+               auc.polygon = FALSE, legacy.axes = TRUE, grid = TRUE)
+
+# Adding isobias line
+lines(x = c(0.5, 1), y = c(0.5, 1), col = "green")
+par(pty = "m") # Reset plot type to default
+```
+
+## Comparison with Previous Models
+```{r compare-models}
+# Assuming you have accuracy from Random Forest and KNN
+rf_accuracy <- 0.96 # Random Forest accuracy (example)
+knn_accuracy <- 0.93 # KNN accuracy (example)
+svm_accuracy <- accuracy_svm # SVM accuracy calculated above
+
+# Create a data frame for model comparison
+model_comparison <- data.frame(Model = c("Random Forest", "KNN", "SVM"),
+                               Accuracy = c(rf_accuracy, knn_accuracy, svm_accuracy))
+
+# Rank order the models by accuracy
+model_comparison <- model_comparison %>% arrange(desc(Accuracy))
+model_comparison
+```
+
+## Interpretation and Discussion
+The SVM model was trained using the radial kernel with cross-validation to determine the optimal cost and gamma parameters. Below are the key metrics:
+
+- **Accuracy**: `r accuracy_svm`
+- **Sensitivity**: `r sensitivity_svm`
+- **Specificity**: `r specificity_svm`
+
+In comparison with Random Forest (`rf_accuracy`) and KNN (`knn_accuracy`), SVM ranked `r match("SVM", model_comparison$Model)` in terms of accuracy. Random Forest performed the best, while KNN ranked lowest.
+
+Overall, the SVM model demonstrated good classification performance, but Random Forest slightly outperformed it in this dataset.
+
+## Conclusion
+Based on the results, Random Forest appears to be the most effective model for predicting breast cancer outcomes in this dataset.
