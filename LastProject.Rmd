@@ -1,0 +1,112 @@
+---
+title: "Project 3 item 2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(e1071)       
+library(caret)    
+library(pROC)   
+library(dplyr)
+library(naivebayes) 
+```
+```{r load-data}
+# Load dataset
+data <- read.csv("creditcard10P.csv")
+
+# Remove Time variable
+data$Time <- NULL
+
+# Scale Amount variable
+data$Amount <- scale(data$Amount)
+
+# Convert Class to factor
+data$Class <- factor(data$Class, levels = c(0, 1), labels = c("Normal", "Fraud"))
+
+```
+
+```{r data-preparation}
+# Split dataset into training (80%) and testing (20%)
+set.seed(123)
+trainIndex <- createDataPartition(data$Class, p = 0.8, list = FALSE)
+trainData <- data[trainIndex, ]
+testData <- data[-trainIndex, ]
+
+```
+
+```{r train-svm}
+# Reduce training dataset size for faster computation
+set.seed(123)
+trainSubset <- trainData[sample(1:nrow(trainData), 2000), ]
+
+# SVM with Linear Kernel
+svm_linear <- tune.svm(Class ~ ., 
+                       data = trainSubset, 
+                       kernel = "linear", 
+                       cost = c(0.1, 1, 10), 
+                       cross = 5)  # 5-fold CV
+
+# Extract the best linear kernel model
+best_svm_linear <- svm_linear$best.model
+
+# Predict on the test data
+linearPred <- predict(best_svm_linear, testData)
+
+# Confusion matrix for linear kernel
+linearCM <- confusionMatrix(linearPred, testData$Class, positive = "Fraud")
+
+# Compute ROC and AUC for linear kernel
+linearProbs <- as.numeric(predict(best_svm_linear, testData, decision.values = TRUE))
+linearROC <- roc(response = testData$Class, predictor = linearProbs, levels = c("Normal", "Fraud"), direction = "<")
+auc_linear <- auc(linearROC)
+
+# Print results
+print(linearCM)
+paste("AUC for Linear Kernel SVM:", round(auc_linear, 3))
+
+```
+
+```{r naive bayes}
+# Train Naive Bayes model
+nbModel <- naive_bayes(Class ~ ., data = trainData)
+
+# Ensure consistent features between training and test data
+testData <- testData[, names(trainData)]
+
+# Predict on the test data
+nbPred <- predict(nbModel, testData)
+
+# Confusion matrix for Naive Bayes
+nbCM <- confusionMatrix(nbPred, testData$Class, positive = "Fraud")
+
+# Compute ROC and AUC for Naive Bayes
+nbProbs <- predict(nbModel, testData, type = "prob")[, "Fraud"]
+nbROC <- roc(response = testData$Class, predictor = nbProbs, levels = c("Normal", "Fraud"), direction = "<")
+auc_nb <- auc(nbROC)
+
+# Print results
+print(nbCM)
+paste("AUC for Naive Bayes:", round(auc_nb, 3))
+
+```
+```{r compare}
+# Combine results into a comparison table
+results <- data.frame(
+  Model = c("SVM (Linear Kernel)", "Naive Bayes"),
+  AUC = c(auc_linear, auc_nb),
+  Accuracy = c(linearCM$overall["Accuracy"], nbCM$overall["Accuracy"]),
+  Sensitivity = c(linearCM$byClass["Sensitivity"], nbCM$byClass["Sensitivity"]),
+  Specificity = c(linearCM$byClass["Specificity"], nbCM$byClass["Specificity"])
+)
+
+print(results)
+```
+## Conclusion
+
+Credit card fraud detection is a challenging task due to the highly imbalanced nature of the dataset.
+
+The SVM model, particularly with a linear kernel seemed to have an higher accuracy level and a specficity level than the naive bayes However, its AUC was considerably lower than that of Naive Bayes, which achieved an AUC.  This indicates that Naive Bayes was better at balancing the trade-off between sensitivity and specificity across different classification thresholds.
+Both models had awful sensitivity which reflects their ability to detect faudulent transactions. Thus explaining the challenge of predicting fraud in a imbalanced dataset.
+
+Overall, while the SVM model excelled in minimizing false positives while the NB model provided more balanced performance.

@@ -1,0 +1,24 @@
+Project 2 heart.csv Dataset for DS110
+
+1. age - age in years
+
+2. sex - sex (1 = male; 0 = female)
+
+3. cp - chest pain type (0 = asymptomatic; 1 = non-anginal pain; 2 = typical angina; 3 = severe angina;)
+
+4. trestbps - resting blood pressure (in mm Hg on admission to the hospital)
+
+5. chol - serum cholestoral in mg/dl
+
+6. fbs - fasting blood sugar mg/dL (below 125 is considered healthy)
+
+7. restecg - resting electrocardiographic results (0 = normal; 1 = hypertrophy)
+
+8. thalach - maximum heart rate achieved
+
+9. exang - exercise induced angina (; 0 = no; 1 = yes)
+
+10. oldpeak - ST depression induced by exercise relative to rest
+
+11. output - diagnosis of heart disease (angiographic disease status) (0 = No; Value 1 = Yes)
+

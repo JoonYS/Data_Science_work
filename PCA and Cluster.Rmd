@@ -1,0 +1,187 @@
+---
+Title: "PCA and Cluster Analysis in R"
+Author: "Junyeong"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+# Load Libraries
+
+```{r load-libraries}
+library(FactoMineR)
+library(factoextra)
+library(randomForest)
+library(caret)
+library(pROC)
+library(NbClust)
+```
+
+# Load and Prepare Wisconsin Breast Cancer Dataset
+
+```{r load-data}
+cancer <- read.csv("breast-cancer-wisconsin.csv")
+cancer$class <- factor(cancer$class, levels = c(2, 4), labels = c("Benign", "Malignant"))
+
+# Remove ID column - keep the independent variables (IVs) and class
+df <- cancer[, -1]
+```
+
+# Logistic Regression on Full Dataset
+
+```{r logistic-regression}
+# Run logistic regression on the full dataset (no train-test split)
+logistic_model <- glm(class ~ ., data = df, family = binomial)
+
+# Make predictions (probabilities)
+logistic_probabilities <- predict(logistic_model, df, type = "response")
+
+# Set threshold to 0.5 to decide between benign and malignant
+logistic_predictions <- ifelse(logistic_probabilities > 0.5, "Malignant", "Benign")
+
+# Confusion Matrix for Logistic Regression
+confusion_matrix_logistic <- confusionMatrix(factor(logistic_predictions), df$class, positive = "Malignant")
+print(confusion_matrix_logistic)
+
+# ROC Curve for Logistic Regression
+roc_curve_logistic <- roc(df$class, logistic_probabilities, levels = c("Benign", "Malignant"))
+plot(roc_curve_logistic, col = "blue", main = "ROC Curve for Logistic Regression")
+```
+
+# Principal Component Analysis (PCA)
+
+```{r pca-analysis}
+# Remove class variable and perform PCA on the predictor measures
+predictors <- df[, -10]
+pca.model <- princomp(x = predictors, cor = FALSE, scores = TRUE)
+
+# Summary of PCA and eigenvalues (variance greater than 1)
+print(pca.model)
+pca.model$sdev^2
+
+# Scree plot to determine how many components to retain
+fviz_eig(pca.model)
+
+# Calculate cumulative variance explained by first 5 components
+cumulative_variance <- sum(pca.model$sdev[1:5]^2) / sum(pca.model$sdev^2)
+print(cumulative_variance)
+
+# View the first few PCA scores
+head(pca.model$scores, 5)
+
+# Print PCA loadings
+print(pca.model$loadings)
+
+# Visualize summary of variables
+fviz_pca_var(pca.model,
+             axes = c(1, 2),
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE)
+
+# Visualize cases on dimensions
+fviz_pca_ind(pca.model,
+             axes = c(1, 2),
+             col.ind = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = FALSE)
+
+# Biplot visualization (variables and observations together)
+fviz_pca_biplot(pca.model,
+                axes = c(1, 2),
+                repel = FALSE,
+                col.var = "#2E9FDF",
+                col.ind = "#696969")
+```
+
+# Logistic Regression Using First Principal Component
+
+```{r logistic-regression-pc1}
+# Create new data frame with first principal component and class variable
+PC1_DF <- data.frame("class" = df$class, "PC1" = pca.model$scores[, 1])
+
+# Run logistic regression using the first principal component
+logistic_model_pc1 <- glm(class ~ PC1, data = PC1_DF, family = binomial)
+
+# Make predictions (probabilities)
+logistic_probabilities_pc1 <- predict(logistic_model_pc1, PC1_DF, type = "response")
+
+# Set threshold to 0.5 to decide between benign and malignant
+logistic_predictions_pc1 <- ifelse(logistic_probabilities_pc1 > 0.5, "Malignant", "Benign")
+
+# Confusion Matrix for Logistic Regression using PC1
+confusion_matrix_pc1 <- confusionMatrix(factor(logistic_predictions_pc1), PC1_DF$class, positive = "Malignant")
+print(confusion_matrix_pc1)
+
+# ROC Curve for Logistic Regression using PC1
+roc_curve_pc1 <- roc(PC1_DF$class, logistic_probabilities_pc1, levels = c("Benign", "Malignant"))
+plot(roc_curve_pc1, col = "red", main = "ROC Curve for Logistic Regression using PC1")
+```
+
+# Comparison of Logistic Regression Models
+
+```{r comparison-logistic}
+# Compare Confusion Matrices and ROC Curves
+print(confusion_matrix_logistic)
+print(confusion_matrix_pc1)
+
+# Plot both ROC Curves for comparison
+plot(roc_curve_logistic, col = "blue", main = "Comparison of ROC Curves")
+lines(roc_curve_pc1, col = "red")
+legend("bottomright", legend = c("All Predictors", "PC1 Only"), col = c("blue", "red"), lwd = 2)
+```
+
+# K-Means Clustering on Iris Dataset
+
+```{r kmeans-clustering-iris}
+# Load iris dataset
+data("iris")
+
+# Remove Species variable and scale the measurement variables
+iris_data <- iris[, -5]
+scaled_iris <- scale(iris_data)
+
+# Perform K-Means clustering with K = 3 using eclust from factoextra library
+res.km_iris <- eclust(scaled_iris, "kmeans", k = 3, graph = TRUE)
+
+# Determine optimal number of clusters using Elbow, Silhouette, and Gap statistic methods
+# Elbow Method
+fviz_nbclust(scaled_iris, kmeans, method = "wss") +
+  geom_vline(xintercept = 3, linetype = 2) +
+  labs(subtitle = "Elbow method")
+
+# Silhouette Method
+fviz_nbclust(scaled_iris, kmeans, method = "silhouette") +
+  labs(subtitle = "Silhouette method")
+
+# Gap Statistic Method
+fviz_nbclust(scaled_iris, kmeans, method = "gap_stat", nboot = 100) +
+  labs(subtitle = "Gap statistic method")
+```
+
+# K-Means Clustering Evaluation
+
+```{r kmeans-evaluation}
+# Add cluster assignments to original iris dataset
+iris_with_clusters <- iris
+iris_with_clusters$Cluster <- res.km_iris$cluster
+
+# Create a table comparing Cluster assignments with actual Species
+comparison_table <- table(as.numeric(iris_with_clusters$Species), iris_with_clusters$Cluster)
+print(comparison_table)
+
+# Confusion Matrix for K-Means Clustering
+confusion_matrix_iris <- confusionMatrix(as.factor(iris_with_clusters$Cluster), as.factor(as.numeric(iris_with_clusters$Species)))
+print(confusion_matrix_iris)
+
+# Multiclass ROC Curve
+roc_multiclass <- multiclass.roc(as.numeric(iris_with_clusters$Species), iris_with_clusters$Cluster)
+plot(roc_multiclass[[1]], col = "blue", main = "Multiclass ROC Curve for K-Means Clustering")
+```
+
+# Conclusion
+
+The PCA was performed on the Wisconsin Breast Cancer dataset and used components in logistic regression modeling. We compared the model performances using all predictors. Additionally, I applied K-Means clustering to the Iris dataset and explored the optimal number of clusters using various methods.
+
+The findings indicate that reducing the dimensionality of the data using PCA can lead to simplified models that are easy to read. In clustering, the optimal number of clusters can vary depending on the chosen evaluation method, but it is generally consistent with known groupings in the dataset.

@@ -1,0 +1,130 @@
+---
+title: "Item 3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+# Load required libraries
+library(tidyverse)
+library(caret)
+library(pROC)
+```
+
+```{r load_data}
+# Load the dataset
+data <- read.csv("heart.csv")
+
+# Print the first few rows to understand the structure
+head(data)
+```
+
+```{r data_preprocessing}
+# Convert necessary variables to factors
+data$sex <- factor(data$sex, levels = c(0, 1), labels = c("female", "male"))
+data$exng <- factor(data$exng, levels = c(0, 1), labels = c("no", "yes"))
+data$restecg <- factor(data$restecg, levels = c(0, 1), labels = c("normal", "hypertrophy"))
+data$output <- factor(data$output, levels = c(0, 1), labels = c("No", "Yes"))
+
+# Convert 'cp' to numeric
+data$cp <- as.numeric(data$cp)
+
+# Normalize the numeric columns
+numeric_vars <- sapply(data, is.numeric)
+data[numeric_vars] <- scale(data[numeric_vars])
+
+# Train-test split
+set.seed(440)
+train_index <- createDataPartition(data$output, p = 0.6, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+```
+
+```{r exploratory_visualization}
+# Key visualizations
+# Age Distribution
+ggplot(data, aes(x = age)) + 
+  geom_histogram(binwidth = 0.5, fill = "blue", color = "black") + 
+  theme_minimal() +
+  labs(title = "Age Distribution of Patients", x = "Age", y = "Count")
+
+# Chest Pain Type vs Heart Disease Output
+ggplot(data, aes(x = cp, fill = output)) +
+  geom_bar(position = "dodge") +
+  theme_minimal() +
+  labs(title = "Chest Pain Type and Heart Disease", x = "Chest Pain Type", y = "Count", fill = "Heart Disease Diagnosis")
+
+# Maximum Heart Rate vs Output
+ggplot(data, aes(x = thalachh, fill = output)) +
+  geom_histogram(binwidth = 0.5, color = "black") +
+  theme_minimal() +
+  labs(title = "Maximum Heart Rate and Heart Disease Diagnosis", x = "Max Heart Rate", y = "Count", fill = "Heart Disease Diagnosis")
+
+```
+
+```{r models_and_evaluation}
+# Logistic Regression
+log_model <- glm(output ~ ., family = binomial, data = train_data)
+log_pred <- predict(log_model, test_data, type = "response")
+log_pred_class <- ifelse(log_pred > 0.5, "Yes", "No")
+log_conf_matrix <- confusionMatrix(factor(log_pred_class, levels = c("No", "Yes")), test_data$output)
+log_conf_matrix
+
+# Linear Discriminant Analysis
+lda_model <- train(output ~ ., data = train_data, method = "lda")
+lda_pred <- predict(lda_model, test_data)
+lda_conf_matrix <- confusionMatrix(lda_pred, test_data$output)
+lda_conf_matrix
+
+# Naive Bayes
+nb_model <- train(output ~ ., data = train_data, method = "nb")
+nb_pred <- predict(nb_model, test_data)
+nb_conf_matrix <- confusionMatrix(nb_pred, test_data$output)
+nb_conf_matrix
+```
+
+```{r roc_curve}
+# ROC Curve for Logistic Regression, LDA, and Naive Bayes
+log_roc <- roc(test_data$output, as.numeric(log_pred), plot = FALSE)
+lda_roc <- roc(test_data$output, as.numeric(predict(lda_model, test_data, type = "prob")[,2]), plot = FALSE)
+nb_roc <- roc(test_data$output, as.numeric(predict(nb_model, test_data, type = "prob")[,2]), plot = FALSE)
+
+# Plot the ROC curves
+plot(log_roc, col = "red", main = "ROC Curves for All Models")
+plot(lda_roc, col = "blue", add = TRUE)
+plot(nb_roc, col = "green", add = TRUE)
+legend("bottomright", legend = c("Logistic Regression", "LDA", "Naive Bayes"),
+       col = c("red", "blue", "green"), lwd = 2)
+```
+
+```{r model_comparisons}
+# AUC values
+log_auc <- auc(log_roc)
+lda_auc <- auc(lda_roc)
+nb_auc <- auc(nb_roc)
+
+print(paste("Logistic Regression AUC: ", round(log_auc, 3)))
+print(paste("LDA AUC: ", round(lda_auc, 3)))
+print(paste("Naive Bayes AUC: ", round(nb_auc, 3)))
+```
+
+```{r conclusions}
+# Conclusion
+# All models performed well in predicting heart disease, as evidenced by the AUC values.
+# Among the three models, the Naive Bayes model is likely the best due to its high sensitivity.
+# Sensitivity is crucial in this medical context because it helps identify patients with heart disease.
+# Missing a true positive or Missing a patient with heart disease can be life-threatening.
+# Specificity is also important to minimize unnecessary procedures and associated costs.
+
+# Based on the evaluation results, the Naive Bayes model performs well in terms of sensitivity, making it ideal for identifying as many true cases of heart disease as possible.
+# Logistic Regression and LDA may have better specificity, but Naive Bayes balances sensitivity with an acceptable level of specificity.
+# AUC is also a valuable metric as it indicates the overall performance of the model.
+# The final decision should balance these metrics, considering both patient safety and the cost-effectiveness for the insurance company.
+# 
+# In this scenario, sensitivity should be prioritized to reduce the risk of undiagnosed heart disease.
+# At the same time, maintaining specificity helps avoid excessive medical costs.
+# Hence, the Naive Bayes model, which provides the highest sensitivity while maintaining an acceptable specificity and a high AUC, is the best choice.
+```

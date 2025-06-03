@@ -1,0 +1,205 @@
+---
+title: "POD Individual Results"
+author: "Junyeong Shin"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+Use this R Markdown to calculate your accuracy, sensitivity and specificity along with other evaluative incidences of task performance
+
+1.  Replace the author text above (in the YAMAL) with your name
+
+2.  In the code block below you need to enter the 2 numbers from the second row of the SDT Table final report from the POD task. The row is labeled "Yes, I saw it." The first number is labeled: FA/FP which is the False Alarm/False Positive count. The second number is labeled: CD/TP which is the Correct Detection/True Positive count.
+
+Replace the XX in the code block below with those 2 numbers. Then knit this file to see the results. Submit the ind_results.html file that is created by knitting this R Markdown file.
+
+```{r echo= TRUE}
+FA <- 5 # Change XX to the FA / FP count
+CD <- 32 # Change XX to the CD / TP count
+```
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+
+options (scipen = 10)
+library (caret)
+library (pROC)
+library (ggplot2)
+
+Truth <- numeric (80)
+Pred <- numeric (80)
+
+Truth[41:80] <- 1
+temp <- 41+CD-1
+if (temp != 40) {Pred[41:temp] <-1}
+temp2 <- FA
+if (temp2 != 0) {Pred[1:temp2] <- 1}
+
+reference <- factor (Truth, levels=c(0,1), labels=c("Object","Gun"))
+prediction <- factor (Pred, levels=c(0,1), labels=c("Object","Gun"))
+t <- table (prediction,reference)
+cm <- confusionMatrix(t, positive="Gun")
+
+if (FA==0) {FA =.5}
+if (CD==40) {CD = 39.5}
+pCD = CD/40
+pFA = FA/40
+
+dPrime <- qnorm(pFA, lower.tail=FALSE) - qnorm(pCD, lower.tail=FALSE)
+c <- (qnorm(pCD, lower.tail=FALSE) + qnorm(pFA, lower.tail=FALSE))/2
+beta <- dnorm(qnorm(pCD)) / dnorm(qnorm(pFA))
+```
+
+## Key Measures from a traditional Prediction Task
+
+The results of a traditional prediction algorithm, like logistic regression or k nearest neighbors are assessed using a *confusion matrix* to compare the predicted category to the reference category (i.e., the actual result). Although many assessment indices can be calculated from a confusion matrix, we focus here on the three below.
+
+**Accuracy**
+
+1.  Accuracy in this task is a participant's ability to differentiate the targets holding guns from those holding other objects correctly. Accuracy is calculated as the proportion of True Positive and True Negative cases divided across the 80 trials. Mathematically that is: (TP+TN) / 80. Accuracy is often compared to the "no information rate" which is what you would get if the model always predicted whichever reference category was most frequent. In this task, have the trials have a gun and half do not so the no information rate is .50
+
+**Sensitivity**
+
+2.  Sensitivity in this task is a participant's ability to correctly identify targets holding a gun on the 40 trials where the target was actually holding a gun. Mathematically that is: TP / (TP+FN)
+
+**Specificity**
+
+3.  Specificity in this task is a participant's ability to correctly identify targets not holding a gun on the 40 trials where the target was actually not holding a gun. Mathematically that is: TN / (TN+FP)
+
+## Complete Confusion Matrix Results
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+cm
+```
+
+## Signal Detection Theory (SDT)
+
+SDT (as applied in cognition) was developed to examine decision making of an individual observer in the presence of uncertainty. The task of the individual is to discriminate the presence of a stimulus (in this caes a gun) against a background of noise (in this case some innocuous object). The method assumes only a normal distribution of response probabilities under the "Noise Only" (some innocuous object) condition and the "Noise + Signal" (object is a gun) condition.
+
+STD is a methodology used to disentangle two components of decision making in ambigous situations. One component is determined by the sensory capability of an individual and the ambiguity of the conditions. It is called "noise corrected sensitivity" or dPrime for short and is how well the observer discriminates the signal from the noise. A second component is the tendency of an individual to make a judgement in one direction (to say gun) when uncertain versus another direction (to say some object) when uncertain and is called response bias or Beta.
+
+### Definitions: d-Prime, c and Beta
+
+**d-Prime**
+
+1.  d-Prime is the measure of corrected sensitivity to the signal as distinct from the noise. It is calculated as the distance (in z score units) between the response distributions for the Noise Only and the Noise + Signal conditions. You can see the two distributions and their distance apart for you based on your results in the figure below. This measure is called dPrime The measure has some relationship to Positive Predictive Value (Precision) from the confusion matrix above, but dPrime is calculated on the probabilities of True Positives (Correct Detections) and False Positives (False Alarms) that are converted to z-scores rather than counts. A d-Prime of 0 indicates that the individual cannot distinguish between the noise and the signal (the two distributions are on top of each other). A d-Prime of 1 or more indicates strong differentiation between noise and signal conditions (the two distributions are far apart).
+
+**c**
+
+2.  c is the decision criterion point. It is the point beyond which, in terms of an individual's perception of the evidence decides to respond "Yes" (deciding the object is a gun) versus saying "No" (deciding the object is likely innocuous). The c measure is expressed in z score units relative to the intersection of the Noise Only and Noise + Signal distributions. Positive values of c indicate the criterion is above the intersection of the two curves. Negative values of c indicate the criterion is below the intersection of the two curves. You can see the placement of c based on your results in the figure below. It is the placement of the red vertical line.
+
+**Beta**
+
+3.  Beta is a measure of response bias or the tendency to make a "Yes" (its a gun) decision versus a "No" (its an innocuous) decision when you are uncertain. It is calculated as the relative densities (ratio) of the Noise + Signal and the Noise Only distributions at the point of c (the decision criterion or the point of uncertainty). Beta values greater than 1 indicate a "strict" criterion or a leaning towards saying "No" when uncertain. Beta values less than 1 indicate a "lax" criterion or a leaning towards saying "Yes" when uncertain.
+
+### Your SDT results for the POD task
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+cbind (dPrime,c,beta)
+```
+
+### SDT model for the task
+
+The model below is a graphic depiction of the response distribution assuming a normal distribution of possible responses for the "Noise Only" trials (where the object was some innocuous object) and the "Noise + Signal" trials (where the object really was a gun). Looking at the x axis labeled Evidence, you can see that the two standard normal curves are dPrime units apart. That is our measure of how distinct the "Noise + Signal" condition is for you versus the "Noise Only" condition.
+
+The criterion c is the point along the evidence axis beyond which you responded "Yes" (you said the object was a gun) and behind which you responded "No" (you said the object was not a gun). The criterion is also measured in zscore units relative to the intersection of the Noise Only and Noise + Signal curves.
+
+The beta value is calculated as the relative densities of the two curves at the criterion point (the point of uncertainty). This value is a ratio of the tendency to say "Yes" versus saying "No" when uncertain.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+cAdj <- dPrime / 2 + c  # Relative to center of Noise curve rather than intersection
+fzFA <- dnorm(cAdj)
+fzCD <- dnorm(cAdj, mean=dPrime, sd=1)
+  
+z = seq(-3, 6, length = 300)
+Noise = dnorm(z, mean = 0,sd = 1)
+Signal = dnorm(z, mean = dPrime, sd = 1)
+
+area_FA = ifelse(z>cAdj,Noise,NA)
+area_CD = ifelse(z>cAdj,Signal,NA)
+
+df = data.frame(z, Noise, Signal, area_FA, area_CD)
+
+ggplot(df, aes(x=z)) +                      
+  scale_x_continuous(name = "Evidence",
+        breaks = seq(-3, 6, 1),
+        limits = c(-3.5, 6.5) ) +
+  scale_y_continuous(name="f(z)") +
+# Noise Only curve  
+  geom_line(aes(y=Noise, color="N (Object)")) +
+  geom_area(aes(y = pmin(area_FA)), fill = '#F4EDCA', alpha=1, na.rm = TRUE) +
+  geom_segment (x=0,y=0,xend=0,yend=.40, linetype="dotted",color = "black", size=0.2) +
+  geom_segment (x=-4,y=fzFA,xend=cAdj,yend=fzFA, linetype="twodash",color = "black", size=0.2) +
+  geom_label(label="f(z)FA", x=-3,y=fzFA) +
+# Noise + Signal curve  
+ geom_line(aes(y = Signal, color="N+S (Gun)")) +
+ geom_area(aes(y = pmin(area_CD)), fill = 'darkcyan', alpha=.4, na.rm = TRUE) +
+ geom_segment (x=dPrime,y=0,xend=dPrime,yend=.40, linetype="dotted" , color = "black", size=0.2) +
+ geom_segment (x=-4,y=fzCD,xend=cAdj,yend=fzCD, linetype="twodash", color = "brown4", size=0.2) +
+ geom_label(label="f(z)CD", x=-3,y=fzCD) +
+# Criterion line  
+  geom_segment (x=cAdj,y=0,xend=cAdj,yend=.45, linetype="solid", color="darkred" ) +
+  geom_label(label="Yes", x=cAdj+.3 ,y=.4) +
+  geom_label(label="No", x=cAdj-.3 ,y=.4) +
+# These final commands need to run
+  scale_colour_manual("Condition", values = c("black", "#4E84C4" )) +
+  theme_bw()  #removes theme_gray() the default
+
+```
+
+## ROC Results
+
+ROC curves can be used to assess a prediction model using the results from a confusion matrix. The x axis of an ROC plot is traditionally the 1-Specificity (or False Alarm) rate and the y axis is the Sensitivity (or Correct Detection) rate. Here we only have one data point (in darkred) as we don't have a range of predictions based on differing criterion levels. The ROC function simply plots lines from that point to the 0 and 1 values on the x axis. The area under the "curve" (AUC) is estimated using that as the range of possible criterion values.
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+
+par(pty="s") # forces plot to be square as ROC plots should be!
+myROC <- roc(Truth ~ Pred, 
+    plot = TRUE, axis = TRUE, xlim=c(1,0), ylim=c(0,1),
+    legacy.axes = TRUE, print.auc = TRUE, grid=TRUE,
+    identity=TRUE, add = FALSE)
+lines (x=c(.5,1), y=c(.5,1), col="darkgreen") #isobias line
+points (cm$byClass[2],cm$byClass[1], pch=19, col="darkred")
+par(pty="m") # forces plot to be square as ROC plots should be!
+myROC
+```
+
+### Theoretical ROC curve
+
+ROC curves are also used in SDT and created the same way. We plot the same point (the intersection of the False Alarm and the Correct Detection rate) only when the task is assessing decision making, as in this task, we assume a normal distribution of possible criterion values that a person could use and that is indicated by the dotted line here.
+
+dPrime is represented in the figure by how high up the isobias (darkgreen) line the point is located. Points located further up (towards the top left) represent higher values of dPrime. The criterion and Beta are represented by the placement of the point horezontally along the isobias (darkgreen) line. Values to the left of the isobias line indicate a strict criterion (Beta values greater than 1.0) i.e., you say "No its not a gun" when uncertain. Values to the right of the isobias line indicate a lax criterion (Beta values less than 1.0) i.e., you say "Yes its a gun" when uncertain
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+z_FA <-seq(-3,3,.1)
+p_FA <- pnorm(z_FA, lower.tail = FALSE)
+p_CD <- p_FA
+main <- data.frame(p_FA,p_CD)
+
+p <- ggplot(main,aes(p_FA,p_CD)) +
+  scale_x_continuous(limits = c(0, 1)) +
+  scale_y_continuous(limits = c(0, 1)) +
+  xlab("1-Specificity/False Alarms") + ylab("Sensitivity/Correct Detections") +
+  geom_segment(x=.5,y=.5,xend=0,yend=1.0, col="darkgreen") +
+  geom_segment(x=.0,y=.0,xend=1,yend=1, col="gray") +
+  theme_bw() +  #removes theme_gray() the default
+  theme(aspect.ratio=1) # forces to be square
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+dPm <- dPrime  # adjustment factor
+roc <- pnorm(z_FA - dPm, lower.tail = FALSE)
+
+pOverall <- p +
+  geom_point (x=1-myROC$specificities[2],y=mean(myROC$sensitivities[2]), color="darkred") +
+  geom_line (aes(y=roc), linetype="dotted", size=.5, color="darkred")
+pOverall
+```
